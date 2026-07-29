@@ -187,7 +187,7 @@ mutable struct SolverPOMCGS{POMDP, ASpace, OSpace_discrete, S, A, O_discrete} <:
 
 		VMDP_heuristic = Vmdp
         # Log result
-        log_result = LogResult(Int64[], Float64[], Float64[], Int64[], Float64[])
+        log_result = LogResult(Int64[], Float64[], Float64[], Float64[], Float64[], Int64[], Float64[])
 
 		b0_processed = OrderedDict{Int,Float64}()
 
@@ -349,7 +349,7 @@ function SolveOnline(pomcgs::SolverPOMCGS, max_steps::Int, planning_time::Float6
 
         pomcgs.fsc = fsc
 
-        SimulationOnline(
+        return SimulationOnline(
             pomcgs.model,
             pomcgs.model.b0_particles,
             pomcgs.b0_processed,

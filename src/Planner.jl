@@ -48,12 +48,7 @@ function ProcessActionWeightedParticle(model::Model,
 			all_dict_weighted_samples[o] = merged_belief_for_unexpected_obs
 			all_oI_weight[o] = 0.0
 		end
-
-		fsc._nodes[nI]._dict_a_o_weights[a][o] = all_oI_weight[o] / sum_all_weights
-
-
 	end
-
 
 	# for each new belief, check distances to existing belief nodes, and create new nodes if needed
 	for (key, value) in all_dict_weighted_samples
@@ -66,10 +61,10 @@ function ProcessActionWeightedParticle(model::Model,
         if !bool_search
             max_Q = HeuristicNodeQ(fsc._nodes[n_nextI], heuristic_Q_actions, ratio_heuristic_Q)
 			fsc._nodes[n_nextI]._V_node = max_Q
-			# fsc._nodes[n_nextI]._V_node = 0.0
 		end
 		fsc._eta[nI][Pair(a, key)] = n_nextI
-		expected_future_V += fsc._nodes[nI]._dict_a_o_weights[a][key] * fsc._nodes[n_nextI]._V_node
+		obs_weight = all_oI_weight[key]
+		expected_future_V += (obs_weight / sum_all_weights) * fsc._nodes[n_nextI]._V_node
 	end
 
 	# --- Update Q(n, a) -----
@@ -80,6 +75,7 @@ end
 
 function Simulate(model::Model,
 				fsc::FSC,
+				s::Int,
 				nI::Int64,
 				depth::Int64,
 				max_depth::Int64,
@@ -92,17 +88,20 @@ function Simulate(model::Model,
 				k_a::Float64,
 				alpha_a::Float64)
 
-	# return lower value and upper value 
+	if depth > max_depth
+		return 0
+	end
 
-	if depth > max_depth || (discount^depth) * (Q_learning_policy._R_max - Q_learning_policy._R_min) < epsilon 
-		return 0, maximum(values(fsc._nodes[nI]._Heuristic_Q_action))
+
+	if (discount^depth) * (Q_learning_policy._R_max - Q_learning_policy._R_min) < epsilon || isterminal(model, s)
+		return 0
 	end
 
 
 	if bool_APW
         a = ActionProgressiveWidening(fsc, nI, fsc._action_space, k_a, alpha_a, C_star)
     else
-		a = AEMS2_ActionSelection(fsc, nI)
+        a = UcbActionSelection(fsc, nI, C_star)
     end
 
 
@@ -116,114 +115,33 @@ function Simulate(model::Model,
 											a, 
 											discount, 
 											Q_learning_policy, 
-											ratio_heuristic_Q), maximum(values(fsc._nodes[nI]._Heuristic_Q_action))
+											ratio_heuristic_Q)
 	end
 
-
-	o_selected, excess_uncertainty = SelectObs(fsc, nI, a)
-
-	nI_next = fsc._eta[nI][Pair(a, o_selected)]
-
-	lower, upper = Simulate(model, 
-							fsc, 
-							nI_next, 
-							depth + 1, 
-							max_depth, 
-							discount, 
-							C_star, 
-							epsilon, 
-							Q_learning_policy, 
-							ratio_heuristic_Q, 
-							bool_APW,
-							k_a,
-							alpha_a)
+	sp, o, r = Step(model, s, a)
+	nI_next = fsc._eta[nI][Pair(a, o)]
 
 
-	esti_V_lower = fsc._nodes[nI]._R_action[a]
-	esti_V_upper = fsc._nodes[nI]._R_action[a]
+	esti_V = fsc._nodes[nI]._R_action[a] + discount * Simulate(model, 
+																fsc, 
+																sp, 
+																nI_next, 
+																depth + 1, 
+																max_depth, 
+																discount, 
+																C_star, 
+																epsilon, 
+																Q_learning_policy, 
+																ratio_heuristic_Q, 
+																bool_APW,
+																k_a,
+																alpha_a)
 
-	for o in fsc._observation_space
-		if o == o_selected
-			esti_V_lower += discount * fsc._nodes[nI]._dict_a_o_weights[a][o] * lower
-			esti_V_upper += discount * fsc._nodes[nI]._dict_a_o_weights[a][o] * upper
-		else
-			nI_next = fsc._eta[nI][Pair(a, o)]
-			esti_V_lower += discount * fsc._nodes[nI]._dict_a_o_weights[a][o] * fsc._nodes[nI_next]._V_lower
-			esti_V_upper += discount * fsc._nodes[nI]._dict_a_o_weights[a][o] * fsc._nodes[nI_next]._V_upper
-		end
-	end
+	fsc._nodes[nI]._Q_action[a] = fsc._nodes[nI]._Q_action[a] + ((esti_V - fsc._nodes[nI]._Q_action[a]) / fsc._nodes[nI]._visits_action[a])
+	fsc._nodes[nI]._V_node = esti_V
 
-
-	# fsc._nodes[nI]._V_node = esti_V_lower
-
-	fsc._nodes[nI]._Q_action[a] = esti_V_lower
-	fsc._nodes[nI]._Heuristic_Q_action[a] = esti_V_upper
-
-
-	# use with upper bound action selection
-	fsc._nodes[nI]._V_lower = maximum(values(fsc._nodes[nI]._Q_action))
-	fsc._nodes[nI]._V_upper = maximum(values(fsc._nodes[nI]._Heuristic_Q_action))
-
-
-	fsc._nodes[nI]._V_node = fsc._nodes[nI]._V_lower
-
-	return fsc._nodes[nI]._V_lower, fsc._nodes[nI]._V_upper
+	return esti_V
 end
-
-function EstimateLowerValue(new_weighted_particles::OrderedDict{Int, Float64}, 
-                           discount::Float64,
-                           max_depth::Int,
-                           model::Model,
-                           fsc::FSC,
-                           nI::Int,
-                           num_sim::Int)
-
-    esti_lower_value = 0.0
-    
-    for (s_initial, pb_s) in new_weighted_particles
-        temp_value = 0.0
-        
-        for sim_i in 1:num_sim
-            # 每次模拟重置状态
-            s = deepcopy(s_initial)  # 使用副本
-            step = 0
-            nI_temp = nI
-            
-            while step ≤ max_depth 
-                if isterminal(model, s) || fsc._nodes[nI_temp]._visits_node <= 1
-                    break 
-                end
-                
-                # 获取当前FSC节点的最优动作
-                current_max_value, selected_a_lower = findmax(fsc._nodes[nI_temp]._Q_action)
-                
-                # 环境步进
-                sp, o, r = Step(model, s, selected_a_lower)
-                
-                # 累计折扣回报
-                temp_value += (discount^step) * r  
-                
-                # 查找下一个FSC节点
-                ao_edge = Pair(selected_a_lower, o)
-                
-                if !haskey(fsc._eta[nI_temp], ao_edge)
-                    break
-                end
-                
-                # 更新FSC节点和状态
-                nI_temp = fsc._eta[nI_temp][ao_edge]  # ✓ 使用 nI_temp
-                s = sp
-                step += 1
-            end
-        end
-        
-        temp_value /= num_sim
-        esti_lower_value += temp_value * pb_s
-    end
-    
-    return esti_lower_value
-end
-
 
 
 
@@ -237,18 +155,14 @@ function MCGraphSearchPOMDP(model::Model,
 	b0 = initialstate(pomdp)
 
 	# assume an empty fsc
-	node_start = CreateNode(dict_weighted_b, fsc._action_space, fsc._observation_space)
+	node_start = CreateNode(dict_weighted_b, fsc._action_space)
 	heuristic_value, action_space, heuristic_Q_actions = GetValueQMDP(dict_weighted_b, 
 																	planner._Q_learning_policy, 
 																	model)
 
-
 	HeuristicNodeQ(node_start, heuristic_Q_actions, planner._ratio_heuristic_Q)
 	push!(fsc._nodes, node_start)
     push!(fsc._nodes_VQMDP_labels, maximum(values(node_start._Heuristic_Q_action)))
-
-
-
 
 	vec_episodes = Vector{Int64}()
 	vec_evaluation_value = Vector{Float64}()
@@ -267,8 +181,10 @@ function MCGraphSearchPOMDP(model::Model,
 	sum_planning_time_secs = 0
 	for i in 1:planner._nb_iter
 		elapsed_time = @elapsed begin
+			s = rand(b)
 			Simulate(model,
 				fsc,
+				s,
 				1,
 				0,
 				planner._max_search_depth,
@@ -302,21 +218,13 @@ function MCGraphSearchPOMDP(model::Model,
 									planner._epsilon,
 									planner._Log_result._vec_evaluation_value,
 									planner._Log_result._vec_upper_bound)
-
-			# U = fsc._nodes[1]._V_upper
-			# L = fsc._nodes[1]._V_lower
-
-			println("root upper:", fsc._nodes[1]._V_upper)
-			println("root lower:", fsc._nodes[1]._V_lower)
+			
 
 			row_string = @sprintf "%6d %18d %12d %15.6f %15.6f %18.6f" iter i fsc_size L U sum_planning_time_secs
             println(row_string)
 
-
-
-
 			push!(planner._Log_result._vec_episodes, i)
-			push!(planner._Log_result._vec_fsc_size, length(fsc._prunned_node_list))
+			push!(planner._Log_result._vec_fsc_size, length(fsc._nodes))
             push!(planner._Log_result._vec_time, sum_planning_time_secs)
 			if U - L < planner._epsilon
 				break
@@ -337,10 +245,11 @@ function CollectSamplesAndBuildNewBeliefsWeightedParticles(
     a::A
 ) where {A}
     node = fsc._nodes[nI]
+	O = eltype(fsc._observation_space)
     weighted_particles = node._dict_weighted_samples
 
-    all_oI_weight = Dict{Int64, Float64}()
-    all_dict_weighted_samples = Dict{Int64, OrderedDict{Int, Float64}}()
+    all_oI_weight = Dict{O, Float64}()
+    all_dict_weighted_samples = Dict{O, OrderedDict{Int, Float64}}()
 
     sum_R_a = 0.0
     sum_all_weights = 0.0
@@ -392,7 +301,6 @@ end
 
 
 
-
 function SimulationOnline(model::Model,
 						b::Vector{Int},
 						dict_weighted_b::OrderedDict{Int, Float64},
@@ -406,7 +314,7 @@ function SimulationOnline(model::Model,
 	b0 = initialstate(pomdp)
 
 	# assume an empty fsc
-	node_start = CreateNode(dict_weighted_b, fsc._action_space, fsc._observation_space)
+	node_start = CreateNode(dict_weighted_b, fsc._action_space)
 	heuristic_value, action_space, heuristic_Q_actions = GetValueQMDP(dict_weighted_b, 
 																	planner._Q_learning_policy, 
 																	model)
@@ -434,6 +342,7 @@ function SimulationOnline(model::Model,
 			elapsed_time = @elapsed begin
 				Simulate(model,
 					fsc,
+					sample_key_from_weighted_dict(fsc._nodes[nI]._dict_weighted_samples),
 					nI,
 					step,
 					planner._max_search_depth,

@@ -1,4 +1,4 @@
-mutable struct FscNode{A, O}
+mutable struct FscNode{A}
     _Q_action::Dict{A,Float64}
     _Heuristic_Q_action::Dict{A,Float64}
     _R_action::Dict{A,Float64} # expected instant reward 
@@ -7,10 +7,7 @@ mutable struct FscNode{A, O}
     _V_node::Float64
     _best_action::A
     _dict_weighted_samples::OrderedDict{Int,Float64} # state index -> weight, state index is handled by ModelWrapper
-    _dict_a_o_weights::Dict{A, Dict{O, Float64}}
     _actions::Vector{A} # for continuous action space, store the sampled actions
-    _V_lower::Float64
-    _V_upper::Float64
 end
 
 
@@ -115,9 +112,8 @@ function run_batch_simulations(pomdp::POMDP, fsc::FSC;
 end
 # ------------------ FSC methods ------------------
 
-function InitFscNode(action_space::ASpace, obs_space::OSpace) where {ASpace, OSpace}
+function InitFscNode(action_space::ASpace) where {ASpace}
     A = eltype(action_space)
-    O = eltype(obs_space)
     best_action = first(action_space)
 
     init_actions = []
@@ -126,13 +122,11 @@ function InitFscNode(action_space::ASpace, obs_space::OSpace) where {ASpace, OSp
     init_heuristic_Q_action = Dict{A,Float64}()
     init_R_action = Dict{A,Float64}()
     init_visits_action = Dict{A,Int64}()
-    init_dict_a_o_weights = Dict{A, Dict{O, Float64}}()
     for a in action_space
         init_Q_action[a] = 0.0
         init_heuristic_Q_action[a] = 0.0
         init_R_action[a] = 0.0
         init_visits_action[a] = 0
-        init_dict_a_o_weights[a] = Dict{O, Float64}()
         push!(init_actions, a)
     end
     # ------------------------
@@ -140,7 +134,7 @@ function InitFscNode(action_space::ASpace, obs_space::OSpace) where {ASpace, OSp
     init_V_node = 0.0
     # --- Weighted Particles ----
     init_dict_weighted_particles = OrderedDict{Int,Float64}()
-    return FscNode{A, O}(init_Q_action,
+    return FscNode{A}(init_Q_action,
                     init_heuristic_Q_action,
                     init_R_action,
                     init_visits_action,
@@ -148,14 +142,11 @@ function InitFscNode(action_space::ASpace, obs_space::OSpace) where {ASpace, OSp
                     init_V_node,
                     best_action,
                     init_dict_weighted_particles,
-                    init_dict_a_o_weights,
-                    init_actions,
-                    0.0,
-                    0.0)
+                    init_actions)
 end
 
-function CreateNode(weighted_b::OrderedDict{Int, Float64}, action_space::ASpace, obs_space::OSpace) where {ASpace, OSpace}
-    node = InitFscNode(action_space, obs_space)
+function CreateNode(weighted_b::OrderedDict{Int, Float64}, action_space::ASpace) where {ASpace}
+    node = InitFscNode(action_space)
     node._dict_weighted_samples = weighted_b
     return node
 end
@@ -210,6 +201,7 @@ function UcbActionSelection(fsc::FSC, nI::Int64, C_star::Int64)
     max_value = typemin(Float64)
     current_max_value, selected_a = findmax(fsc._nodes[nI]._Q_action)
 
+
     if node_visits > C_star
         return selected_a
     end
@@ -220,9 +212,6 @@ function UcbActionSelection(fsc::FSC, nI::Int64, C_star::Int64)
         node_a_visits = fsc._nodes[nI]._visits_action[a]
 
         c = (fsc._nodes[nI]._Heuristic_Q_action[a] - fsc._nodes[nI]._Q_action[a])
-
-
-        # this one seems works a bit 
         if node_a_visits == 0
             ratio_visit = log(node_visits + 1) / 0.1
         else
@@ -241,110 +230,6 @@ function UcbActionSelection(fsc::FSC, nI::Int64, C_star::Int64)
     return selected_a
 end
 
-function AEMS1_ActionSelection_Hybrid(fsc::FSC, nI::Int64)
-    lower_Q = fsc._nodes[nI]._Q_action
-    upper_Q = fsc._nodes[nI]._Heuristic_Q_action
-
-    # 1. 找出当前最优下界动作（安全保守的选择）
-    best_lower_value = maximum(values(lower_Q))
-    best_lower_actions = [a for a in keys(lower_Q) if abs(lower_Q[a] - best_lower_value) < 1e-9]
-    action_lower = rand(best_lower_actions)  # 如果有多个，随机选一个
-
-    # 2. 找出当前最优上界动作（乐观激进的选择）
-    best_upper_value = maximum(values(upper_Q))
-    best_upper_actions = [a for a in keys(upper_Q) if abs(upper_Q[a] - best_upper_value) < 1e-9]
-    action_upper = rand(best_upper_actions)  # 如果有多个，随机选一个
-
-    # 3. 如果两个动作相同，直接返回
-    if action_lower == action_upper
-        return action_lower
-    end
-
-    # 4. 随机在两者之间选择一个
-    # 可以使用固定的概率（如50/50），也可以根据上下界差距动态调整
-    # 这里使用50/50的均匀随机选择
-    if rand() < 0.5
-        return action_lower
-    else
-        return action_upper
-    end
-end
-
-function AEMS2_ActionSelection(fsc::FSC, nI::Int64)
-
-    lower_Q = fsc._nodes[nI]._Q_action
-    upper_Q = fsc._nodes[nI]._Heuristic_Q_action
-
-    # best known lower bound
-    best_lower_value = maximum(values(lower_Q))
-
-    # candidate actions whose upper bound can still beat lower bound
-    candidate_actions = [
-        a for a in keys(upper_Q)
-        if upper_Q[a] >= best_lower_value
-    ]
-
-    # safety: if numerical issue removes all actions
-    if isempty(candidate_actions)
-        _, selected_a = findmax(upper_Q)
-        return selected_a
-    end
-
-    # AEMS1 style: select largest upper bound among candidates
-    selected_a = candidate_actions[argmax(
-        [upper_Q[a] for a in candidate_actions]
-    )]
-
-    return selected_a
-end
-
-
-function SelectObs(fsc::FSC, nI::Int64, a_best::A) where {A}
-    # Check if action exists in _a_o_weights
-    if !haskey(fsc._nodes[nI]._dict_a_o_weights, a_best)
-        @error "Action $a_best not found in _a_o_weights"
-        return -1, -Inf
-    end
-    
-    excess_uncertainty = -Inf
-    o_selected = rand(fsc._observation_space)
-    
-    for (o, w) in fsc._nodes[nI]._dict_a_o_weights[a_best]
-        ao_edge = Pair(a_best, o)
-        
-        # Check if child exists
-        if !haskey(fsc._eta[nI], ao_edge)
-            @warn "Child node for ($a_best, $o) not found, skipping"
-            continue
-        end
-        
-        next_nI = fsc._eta[nI][ao_edge]
-        U = fsc._nodes[next_nI]._V_upper
-        L = fsc._nodes[next_nI]._V_lower
-        gap = U - L
-        
-
-        # # Warning for U < L
-        # if U < L && abs(U - L) > 1e-2
-        #     @warn "U < L for obs $o (U=$U, L=$L), FSC node=$(child._fsc_node_index)"
-        # end
-        
-        weighted_gap = w * gap
-        if weighted_gap > excess_uncertainty
-            excess_uncertainty = weighted_gap
-            o_selected = o
-        end
-    end
-    
-    # if o_selected == -1
-    #     @error "No valid observation selected for action $a_best"
-    #     throw(ErrorException("SelectObs: Could not select a valid observation"))
-    # end
-    
-    return o_selected, excess_uncertainty
-end
-
-
 function ActionProgressiveWidening(fsc::FSC, nI::Int, action_space, K_a::Float64, alpha_a::Float64, C_star::Int64)
     node_visits = fsc._nodes[nI]._visits_node
     current_action_num = length(fsc._nodes[nI]._actions)
@@ -353,8 +238,7 @@ function ActionProgressiveWidening(fsc::FSC, nI::Int, action_space, K_a::Float64
         AddNewAction(fsc._nodes[nI], a)
         return a
     else
-        # return UcbActionSelection(fsc, nI, C_star) 
-        return AEMS2_ActionSelection(fsc, nI)
+        return UcbActionSelection(fsc, nI, C_star) 
     end
 end
 
@@ -367,8 +251,6 @@ function AddNewAction(n::FscNode, a::A) where {A}
         n._visits_action[a] = 0.0
     end
 end
-
-
 
 function SearchSimilarBelief(
     fsc::FSC,
@@ -414,7 +296,7 @@ function SearchOrInsertBelief(
     new_weighted_particles::OrderedDict{Int,Float64},
     new_heuristic_value::Float64,
     b_gap_max::Float64;
-    Kcandidates::Int = 100
+    Kcandidates::Int = 1000
 )
     N = length(fsc._nodes)
 
@@ -430,7 +312,7 @@ function SearchOrInsertBelief(
 
     # Insert new node if no close match found
     if min_distance > b_gap_max
-        new_node = CreateNode(new_weighted_particles, fsc._action_space, fsc._observation_space)
+        new_node = CreateNode(new_weighted_particles, fsc._action_space)
         push!(fsc._nodes, new_node)
         push!(fsc._nodes_VQMDP_labels, new_heuristic_value)
         return false, length(fsc._nodes)
@@ -615,17 +497,13 @@ function HeuristicNodeQ(node::FscNode, Heuristic_Q_actions::Dict{A, Float64}, ra
         end
 
         node._Heuristic_Q_action[a] = value
-        node._Q_action[a] = ratio*value
-        # node._Q_action[a] = value
+        # node._Q_action[a] = ratio*value
+        node._Q_action[a] = value
 
 		if value > max_value
 			max_value = value
-            node._best_action = a
 		end
 	end
-
-    node._V_upper = max_value
-
 	return ratio*max_value
 end
 
