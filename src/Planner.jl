@@ -302,7 +302,6 @@ end
 
 
 function SimulationOnline(model::Model,
-						b::Vector{Int},
 						dict_weighted_b::OrderedDict{Int, Float64},
 						fsc::FSC,
 						planner::Planner,
