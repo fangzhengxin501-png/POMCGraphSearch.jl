@@ -1,0 +1,19 @@
+using POMCGraphSearch
+using POMDPs
+using Random
+using POMDPTools
+using RockSample
+
+Random.seed!(1)
+
+pomdp = RockSamplePOMDP(11, 11)  # Small problem for fast testing
+pomcgs = SolverPOMCGS(pomdp;
+    max_b_gap =0.15,
+    max_planning_secs=3600.0,  # Short time for tests
+    max_search_depth=30,
+    num_sim_per_sa=10
+)
+
+solve(pomcgs, pomdp)
+
+ExportLogData(pomcgs, "RS11_log")

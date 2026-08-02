@@ -589,7 +589,8 @@ function transition(fsc::FSC, nI::Int, a::A, o::O) where {A, O}
 
         if isempty(candidates)
             # println("Warning: No transitions found for action $a from node $nI with observation $o.")
-            return 1  # No transition for this action, go to root node
+            # return 1  # No transition for this action, go to root node
+            return nI
         end
         throw(ArgumentError("Invalid transition with node $nI, action $a, and observation $o."))        
     end
