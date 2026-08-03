@@ -12,7 +12,7 @@ pomdp = TagPOMDP()
 pomcgs = SolverPOMCGS(pomdp;
     max_b_gap = 0.1,
     max_search_depth = 50,
-    num_sim_per_sa = 10000
+    num_sim_per_sa = 1000
 )
 
 
