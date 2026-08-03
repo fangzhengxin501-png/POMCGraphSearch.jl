@@ -194,20 +194,28 @@ function InitFSC(max_accept_belief_gap::Float64, max_node_size::Int64, action_sp
 
 end
 
+# function GetBestAction(n::FscNode)
+#     Q_max = typemin(Float64)
+#     best_a = first(keys(n._Q_action))
+#     visits = n._visits_action
+#     q_actions = n._Q_action
+    
+#     @inbounds for (a, q_value) in q_actions
+#         if visits[a] > 0 && q_value > Q_max
+#             Q_max = q_value
+#             best_a = a
+#         end
+#     end
+    
+#     n._best_action = best_a
+#     return best_a
+# end
+
+
 function GetBestAction(n::FscNode)
-    Q_max = typemin(Float64)
-    best_a = first(keys(n._Q_action))
-    visits = n._visits_action
-    q_actions = n._Q_action
     
-    @inbounds for (a, q_value) in q_actions
-        if visits[a] > 0 && q_value > Q_max
-            Q_max = q_value
-            best_a = a
-        end
-    end
-    
-    n._best_action = best_a
+    _, best_a = findmax(n._visits_action)
+
     return best_a
 end
 
@@ -514,7 +522,7 @@ function HeuristicNodeQ(node::FscNode, Heuristic_Q_actions::Dict{A, Float64}, ra
 
         node._Heuristic_Q_action[a] = value
         # node._Q_action[a] = ratio*value
-        node._Q_action[a] = value
+        # node._Q_action[a] = value
 
 		if value > max_value
 			max_value = value
