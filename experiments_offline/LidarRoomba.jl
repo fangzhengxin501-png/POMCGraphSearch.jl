@@ -23,7 +23,7 @@ pomdp = RoombaPOMDP(sensor=Lidar(),
 
 pomcgs = SolverPOMCGS(pomdp;
     max_search_depth = 50,
-    max_b_gap = 0.1,
+    max_b_gap = 0.15,
     bool_APW = false,
     num_fixed_observations = 10
 )

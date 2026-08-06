@@ -10,7 +10,7 @@ Random.seed!(1)
 pomdp = TagPOMDP()
 
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap = 0.2,
+    max_b_gap = 0.18,
     max_search_depth = 50,
     C_star = 1000,
     num_sim_per_sa = 1000
