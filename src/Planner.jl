@@ -12,7 +12,6 @@ mutable struct Planner
 	_Q_learning_policy::Qlearning
 	_lower_bound_policy::LowerBoundPolicy
 	_Log_result::LogResult
-	_ratio_heuristic_Q::Float64
 	_k_a::Float64
     _alpha_a::Float64
     _bool_APW::Bool
@@ -26,8 +25,7 @@ function ProcessActionWeightedParticle(model::Model,
 										a::A,
 										discount::Float64,
 										Q_learning_policy::Qlearning,
-										lower_bound_policy::LowerBoundPolicy,
-										ratio_heuristic_Q::Float64
+										lower_bound_policy::LowerBoundPolicy
 										) where {A}
 
 
@@ -49,8 +47,7 @@ function ProcessActionWeightedParticle(model::Model,
 																		model)
 		bool_search, n_nextI = SearchOrInsertBelief(fsc, all_dict_weighted_samples[key], heuristic_value, fsc._max_accept_belief_gap)
         if !bool_search
-            max_Q = HeuristicNodeQ(fsc._nodes[n_nextI], heuristic_Q_actions, lower_bound_policy, ratio_heuristic_Q)
-			fsc._nodes[n_nextI]._V_node = max_Q
+			HeuristicNodeQ(fsc._nodes[n_nextI], heuristic_Q_actions, lower_bound_policy)
 		end
 		fsc._eta[nI][Pair(a, key)] = n_nextI
 		obs_weight = all_oI_weight[key]
@@ -74,7 +71,6 @@ function Simulate(model::Model,
 				epsilon::Float64,
 				Q_learning_policy::Qlearning,
 				lower_bound_policy::LowerBoundPolicy,
-				ratio_heuristic_Q::Float64,
 				bool_APW::Bool,
 				k_a::Float64,
 				alpha_a::Float64)
@@ -106,8 +102,7 @@ function Simulate(model::Model,
 											a, 
 											discount, 
 											Q_learning_policy, 
-											lower_bound_policy,
-											ratio_heuristic_Q)
+											lower_bound_policy)
 	end
 
 	sp, o, r = Step(model, s, a)
@@ -125,7 +120,6 @@ function Simulate(model::Model,
 																epsilon, 
 																Q_learning_policy, 
 																lower_bound_policy,
-																ratio_heuristic_Q, 
 																bool_APW,
 																k_a,
 																alpha_a)
@@ -153,7 +147,7 @@ function MCGraphSearchPOMDP(model::Model,
 																	planner._Q_learning_policy, 
 																	model)
 
-	HeuristicNodeQ(node_start, heuristic_Q_actions, planner._lower_bound_policy, planner._ratio_heuristic_Q)
+	HeuristicNodeQ(node_start, heuristic_Q_actions, planner._lower_bound_policy)
 	push!(fsc._nodes, node_start)
     push!(fsc._nodes_VQMDP_labels, maximum(values(node_start._Heuristic_Q_action)))
 
@@ -186,7 +180,6 @@ function MCGraphSearchPOMDP(model::Model,
 				planner._epsilon,
 				planner._Q_learning_policy,
 				planner._lower_bound_policy,
-				planner._ratio_heuristic_Q,
 				planner._bool_APW,
 				planner._k_a,
 				planner._alpha_a)
@@ -313,7 +306,7 @@ function SimulationOnline(model::Model,
 																	model)
 
 
-	HeuristicNodeQ(node_start, heuristic_Q_actions, planner._lower_bound_policy, planner._ratio_heuristic_Q)
+	HeuristicNodeQ(node_start, heuristic_Q_actions, planner._lower_bound_policy)
 	push!(fsc._nodes, node_start)
     push!(fsc._nodes_VQMDP_labels, maximum(values(node_start._Heuristic_Q_action)))
 
@@ -344,7 +337,6 @@ function SimulationOnline(model::Model,
 					planner._epsilon,
 					planner._Q_learning_policy,
 					planner._lower_bound_policy,
-					planner._ratio_heuristic_Q,
 					planner._bool_APW,
 					planner._k_a,
 					planner._alpha_a)
