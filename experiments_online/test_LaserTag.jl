@@ -11,13 +11,14 @@ pomdp = gen_lasertag(rng=rng, robot_position_known=false)
 
 
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap = 0.02,
+    max_b_gap = 0.05,
     max_search_depth = 50,
+    num_fixed_observations=6,
     num_sim_per_sa = 1000
 )
 
 planning_time = 3.0
-max_depth = 40
+max_depth = 100
 nb_runs = 100
 
 results = Float64[]
@@ -34,4 +35,3 @@ CSV.write("pomcgs_results_LaserTag.csv", df)
 
 println("\nTotal return: $(sum(results))")
 println("Average return: $(mean(results))")
-println("Results saved to pomcgs_results.csv")

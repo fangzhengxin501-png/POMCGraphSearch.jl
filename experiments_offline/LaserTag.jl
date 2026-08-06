@@ -11,7 +11,7 @@ pomdp = gen_lasertag(rng=rng, robot_position_known=false)
 
 
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap = 0.2,
+    max_b_gap = 0.3,
     max_search_depth = 50,
     num_sim_per_sa = 1000
 )

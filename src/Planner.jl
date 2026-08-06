@@ -40,18 +40,6 @@ function ProcessActionWeightedParticle(model::Model,
 	fsc._nodes[nI]._R_action[a] = sum_R_a
 	expected_future_V = 0.0
 
-
-	merged_belief_for_unexpected_obs = merge_and_normalize_beliefs(all_dict_weighted_samples)
-
-	# find unexpected observations
-	for o in fsc._observation_space
-		if !haskey(all_dict_weighted_samples, o)
-			# for unexpected observations, link to merged belief (belief update with only the action)
-			all_dict_weighted_samples[o] = merged_belief_for_unexpected_obs
-			all_oI_weight[o] = 0.0
-		end
-	end
-
 	# for each new belief, check distances to existing belief nodes, and create new nodes if needed
 	for (key, value) in all_dict_weighted_samples
 		NormalizeDict(all_dict_weighted_samples[key])
@@ -123,8 +111,8 @@ function Simulate(model::Model,
 	end
 
 	sp, o, r = Step(model, s, a)
-	nI_next = fsc._eta[nI][Pair(a, o)]
-
+	# nI_next = fsc._eta[nI][Pair(a, o)]
+	nI_next = transition(fsc, nI, a, o)
 
 	esti_V = fsc._nodes[nI]._R_action[a] + discount * Simulate(model, 
 																fsc, 
