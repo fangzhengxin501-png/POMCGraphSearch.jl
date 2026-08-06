@@ -81,9 +81,9 @@ mutable struct SolverPOMCGS{POMDP, ASpace, OSpace_discrete, S, A, O_discrete} <:
                     # --- VMDP heuristic defaults ---
                     # VMDP_heuristic::Any = nothing,
 					nb_episode_size::Int = 30,
-					VMDP_nb_max_episode::Int = 20,
+					VMDP_nb_max_episode::Int = 30,
                     nb_samples_VMDP::Int = 5000,
-					nb_sim_VMDP::Int = 10,
+					nb_sim_VMDP::Int = 20,
                     epsilon_VMDP::Float64 = 0.1,
                     VMDP_b0_value::Float64 = 0.0,
                     # --- Planner defaults ---

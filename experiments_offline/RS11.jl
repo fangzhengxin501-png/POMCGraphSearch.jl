@@ -6,13 +6,16 @@ using RockSample
 
 Random.seed!(1)
 
-pomdp = RockSamplePOMDP(11, 11)  # Small problem for fast testing
+pomdp = RockSamplePOMDP(11, 11)  
+
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap =0.15,
-    max_planning_secs=3600.0,  # Short time for tests
-    max_search_depth=30,
-    num_sim_per_sa=10
+    max_b_gap = 0.3,
+    max_search_depth = 40,
+    nb_particles = 50000,
+    epsilon_VMDP = 0.01,
+    num_sim_per_sa = 20
 )
+
 
 solve(pomcgs, pomdp)
 

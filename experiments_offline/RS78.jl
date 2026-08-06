@@ -16,4 +16,4 @@ pomcgs = SolverPOMCGS(pomdp;
 
 solve(pomcgs, pomdp)
 
-ExportLogData(pomcgs, "RS78_log.csv")
+ExportLogData(pomcgs, "RS78_log")
