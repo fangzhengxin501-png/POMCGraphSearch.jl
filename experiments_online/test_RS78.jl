@@ -22,7 +22,8 @@ nb_runs = 100
 results = Float64[]
 
 for i in 1:nb_runs
-    run_return = POMCGraphSearch.SolveOnline(pomcgs, max_depth, planning_time; verbose=true)
+    # run_return = POMCGraphSearch.SolveOnline(pomcgs, max_depth, planning_time; verbose=true)
+    run_return = POMCGraphSearch.SolveOnline(pomcgs, max_depth, planning_time; verbose=false)
     push!(results, run_return)
     println("Run $i: $run_return")
 end

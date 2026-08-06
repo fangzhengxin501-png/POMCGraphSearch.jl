@@ -211,12 +211,9 @@ end
 #     return best_a
 # end
 
-
 function GetBestAction(n::FscNode)
-    
-    _, best_a = findmax(n._visits_action)
-
-    return best_a
+    _, a = findmax(n._visits_action)
+    return a
 end
 
 
@@ -512,24 +509,33 @@ end
 
 
 
-function HeuristicNodeQ(node::FscNode, Heuristic_Q_actions::Dict{A, Float64}, ratio::Float64) where {A}
+function LeafRollout(node::FscNode, ratio::Float64) where {A}
+	
 	max_value = typemin(Float64)
-	for (a, value) in node._Q_action
-		value = 0.0
-		if haskey(Heuristic_Q_actions, a)
-            value = Heuristic_Q_actions[a]
-        end
+	for (a, v) in node._Q_action
+		value = node._Heuristic_Q_action[a]
 
-        node._Heuristic_Q_action[a] = value
-        # node._Q_action[a] = ratio*value
-        # node._Q_action[a] = value
+        node._Q_action[a] = value
 
 		if value > max_value
 			max_value = value
 		end
 	end
+
 	return ratio*max_value
 end
+
+
+function HeuristicNodeQ(node::FscNode, Heuristic_Q_actions::Dict{A, Float64}) where {A}
+	for (a, value) in Heuristic_Q_actions
+        node._Heuristic_Q_action[a] = value
+	end
+end
+
+
+
+
+# function GetLowerEstimationQMDP()
 
 
 function GetValueQMDP(
@@ -597,8 +603,7 @@ function transition(fsc::FSC, nI::Int, a::A, o::O) where {A, O}
 
         if isempty(candidates)
             # println("Warning: No transitions found for action $a from node $nI with observation $o.")
-            # return 1  # No transition for this action, go to root node
-            return nI
+            return 1  # No transition for this action, go to root node
         end
         throw(ArgumentError("Invalid transition with node $nI, action $a, and observation $o."))        
     end
