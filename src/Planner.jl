@@ -18,15 +18,41 @@ mutable struct Planner
 end
 
 
-
 function ProcessActionWeightedParticle(model::Model,
 										fsc::FSC,
 										nI::Int64,
 										a::A,
 										discount::Float64,
+										remain_depth::Int64,
 										Q_learning_policy::Qlearning,
 										ratio_heuristic_Q::Float64
 										) where {A}
+
+	sum_all_weights, all_oI_weight = ExpandChilds(model, fsc, nI, a, Q_learning_policy)
+
+	expected_future_V = 0.0
+
+	for (o, obs_weight) in all_oI_weight
+		n_nextI = fsc._eta[nI][Pair(a, o)]
+		if fsc._nodes[n_nextI]._visits_node == 0
+            max_Q = LeafRollout(fsc._nodes[n_nextI], ratio_heuristic_Q)
+			fsc._nodes[n_nextI]._V_node = max_Q
+			# EstimationRolloutQMDP(model, n_nextI, fsc, Q_learning_policy, remain_depth)
+		end 
+		expected_future_V += (obs_weight / sum_all_weights) * fsc._nodes[n_nextI]._V_node
+	end
+
+ 	# --- Update Q(n, a) -----
+	fsc._nodes[nI]._Q_action[a] = fsc._nodes[nI]._R_action[a] + discount * expected_future_V
+	return fsc._nodes[nI]._Q_action[a]
+end
+
+function ExpandChilds(model::Model,
+					fsc::FSC,
+					nI::Int64,
+					a::A,
+					Q_learning_policy::Qlearning
+					) where {A}
 
 
 	sum_R_a, sum_all_weights, all_oI_weight, all_dict_weighted_samples = CollectSamplesAndBuildNewBeliefsWeightedParticles(model::Model,
@@ -36,7 +62,6 @@ function ProcessActionWeightedParticle(model::Model,
 												
 	# Build new belief nodes
 	fsc._nodes[nI]._R_action[a] = sum_R_a
-	expected_future_V = 0.0
 
 
 	merged_belief_for_unexpected_obs = merge_and_normalize_beliefs(all_dict_weighted_samples)
@@ -59,17 +84,12 @@ function ProcessActionWeightedParticle(model::Model,
 																		model)
 		bool_search, n_nextI = SearchOrInsertBelief(fsc, all_dict_weighted_samples[key], heuristic_value, fsc._max_accept_belief_gap)
         if !bool_search
-            max_Q = HeuristicNodeQ(fsc._nodes[n_nextI], heuristic_Q_actions, ratio_heuristic_Q)
-			fsc._nodes[n_nextI]._V_node = max_Q
+            HeuristicNodeQ(fsc._nodes[n_nextI], heuristic_Q_actions)
 		end
 		fsc._eta[nI][Pair(a, key)] = n_nextI
-		obs_weight = all_oI_weight[key]
-		expected_future_V += (obs_weight / sum_all_weights) * fsc._nodes[n_nextI]._V_node
 	end
 
-	# --- Update Q(n, a) -----
-	fsc._nodes[nI]._Q_action[a] = fsc._nodes[nI]._R_action[a] + discount * expected_future_V
-	return fsc._nodes[nI]._Q_action[a]
+	return sum_all_weights, all_oI_weight
 end
 
 
@@ -89,12 +109,12 @@ function Simulate(model::Model,
 				alpha_a::Float64)
 
 	if depth > max_depth
-		return 0
+		return 0.0
 	end
 
 
 	if (discount^depth) * (Q_learning_policy._R_max - Q_learning_policy._R_min) < epsilon || isterminal(model, s)
-		return 0
+		return 0.0
 	end
 
 
@@ -108,18 +128,24 @@ function Simulate(model::Model,
 	fsc._nodes[nI]._visits_node += 1
 	fsc._nodes[nI]._visits_action[a] += 1
 
-	if fsc._nodes[nI]._visits_action[a] == 1
+
+	sp, o, r = Step(model, s, a)
+
+	ao_edge = Pair(a, o)
+
+	if !haskey(fsc._eta[nI], ao_edge)
 		return ProcessActionWeightedParticle(model, 
 											fsc, 
 											nI, 
 											a, 
 											discount, 
-											Q_learning_policy, 
+											max_depth - depth,
+											Q_learning_policy,
 											ratio_heuristic_Q)
 	end
 
-	sp, o, r = Step(model, s, a)
-	nI_next = fsc._eta[nI][Pair(a, o)]
+
+	nI_next = fsc._eta[nI][ao_edge]
 
 
 	esti_V = fsc._nodes[nI]._R_action[a] + discount * Simulate(model, 
@@ -160,9 +186,14 @@ function MCGraphSearchPOMDP(model::Model,
 																	planner._Q_learning_policy, 
 																	model)
 
-	HeuristicNodeQ(node_start, heuristic_Q_actions, planner._ratio_heuristic_Q)
+	HeuristicNodeQ(node_start, heuristic_Q_actions)
+	LeafRollout(node_start, planner._ratio_heuristic_Q)
 	push!(fsc._nodes, node_start)
     push!(fsc._nodes_VQMDP_labels, maximum(values(node_start._Heuristic_Q_action)))
+	# EstimationRolloutQMDP(model, 1, fsc, planner._Q_learning_policy, planner._max_search_depth)
+
+
+
 
 	vec_episodes = Vector{Int64}()
 	vec_evaluation_value = Vector{Float64}()
@@ -299,7 +330,44 @@ function CollectSamplesAndBuildNewBeliefsWeightedParticles(
 end
 
 
+function EstimationRolloutQMDP(model::Model,
+                               nI::Int,
+                               fsc::FSC,
+                               Q_learning_policy::Qlearning,
+                               remain_depth::Int;
+                               num_sim::Int = 10)
+    
+    gamma = discount(model)
+    esti_V = 0.0
 
+    for _ in 1:num_sim
+        step = 0 
+        sum_r = 0.0
+        nI_temp = nI
+        s = sample_key_from_weighted_dict(fsc._nodes[nI_temp]._dict_weighted_samples)
+        while step ≤ remain_depth && isterminal(model, s) == false
+            _, a = findmax(fsc._nodes[nI_temp]._Heuristic_Q_action)
+            sp, o, r = Step(model, s, a)
+            ao_edge = Pair(a, o)
+            if !haskey(fsc._eta[nI_temp], ao_edge)
+                ExpandChilds(model, fsc, nI_temp, a, Q_learning_policy)
+            end
+            nI_temp = fsc._eta[nI_temp][ao_edge]
+            sum_r += (gamma^step) * r
+            s = sp
+            step += 1
+        end 
+
+        esti_V += sum_r
+    end
+
+    _, a = findmax(fsc._nodes[nI]._Heuristic_Q_action)
+    
+	esti_V /= num_sim
+
+	fsc._nodes[nI]._Q_action[a] = esti_V
+    fsc._nodes[nI]._V_node = esti_V
+end 
 
 function SimulationOnline(model::Model,
 						dict_weighted_b::OrderedDict{Int, Float64},
@@ -319,9 +387,14 @@ function SimulationOnline(model::Model,
 																	model)
 
 
-	HeuristicNodeQ(node_start, heuristic_Q_actions, planner._ratio_heuristic_Q)
+	HeuristicNodeQ(node_start, heuristic_Q_actions)
+	LeafRollout(node_start, planner._ratio_heuristic_Q)
 	push!(fsc._nodes, node_start)
     push!(fsc._nodes_VQMDP_labels, maximum(values(node_start._Heuristic_Q_action)))
+	# EstimationRolloutQMDP(model, 1, fsc, planner._Q_learning_policy, planner._max_search_depth)
+
+
+
 
     obs_cluster_model = fsc._obs_kmeans_centroids
     bool_continuous_observations = length(obs_cluster_model) > 0
