@@ -1,22 +1,20 @@
 using POMCGraphSearch
 using POMDPModels, POMDPTools, POMDPs, Distributions, StatsBase
-using TagPOMDPProblem
+using LaserTag
 using CSV, DataFrames
 using Random 
 
 Random.seed!(1)
 
+rng = MersenneTwister(7)
+pomdp = gen_lasertag(rng=rng, robot_position_known=false)
 
-pomdp = TagPOMDP()
 
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap = 0.15,
+    max_b_gap = 0.2,
     max_search_depth = 50,
-    C_star = 1000,
     num_sim_per_sa = 1000
 )
 
-
 solve(pomcgs, pomdp)
-ExportLogData(pomcgs, "Tag_log.csv")
-
+ExportLogData(pomcgs, "LidarRoomba_log.csv")

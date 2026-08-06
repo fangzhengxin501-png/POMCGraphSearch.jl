@@ -6,6 +6,7 @@ mutable struct FscNode{A}
     _visits_node::Int64
     _V_node::Float64
     _best_action::A
+    _blind_policy_action::A
     _dict_weighted_samples::OrderedDict{Int,Float64} # state index -> weight, state index is handled by ModelWrapper
     _actions::Vector{A} # for continuous action space, store the sampled actions
 end
@@ -131,6 +132,7 @@ end
 function InitFscNode(action_space::ASpace) where {ASpace}
     A = eltype(action_space)
     best_action = first(action_space)
+    blind_policy_action = first(action_space)
 
     init_actions = []
     # --- init for actions ---
@@ -157,6 +159,7 @@ function InitFscNode(action_space::ASpace) where {ASpace}
                     init_visits_node,
                     init_V_node,
                     best_action,
+                    blind_policy_action,
                     init_dict_weighted_particles,
                     init_actions)
 end
@@ -194,28 +197,18 @@ function InitFSC(max_accept_belief_gap::Float64, max_node_size::Int64, action_sp
 
 end
 
-# function GetBestAction(n::FscNode)
-#     Q_max = typemin(Float64)
-#     best_a = first(keys(n._Q_action))
-#     visits = n._visits_action
-#     q_actions = n._Q_action
-    
-#     @inbounds for (a, q_value) in q_actions
-#         if visits[a] > 0 && q_value > Q_max
-#             Q_max = q_value
-#             best_a = a
-#         end
-#     end
-    
-#     n._best_action = best_a
-#     return best_a
-# end
 
 function GetBestAction(n::FscNode)
     _, a = findmax(n._visits_action)
+    n._best_action = a
+
+    if n._visits_action[a] == 0
+        # using blind policy action
+        return n._blind_policy_action
+    end
+
     return a
 end
-
 
 function UcbActionSelection(fsc::FSC, nI::Int64, C_star::Int64)
     node_visits = fsc._nodes[nI]._visits_node
@@ -509,12 +502,16 @@ end
 
 
 
-function LeafRollout(node::FscNode, ratio::Float64) where {A}
-	
+function HeuristicNodeQ(node::FscNode, Heuristic_Q_actions::Dict{A, Float64}, lower_bound_policy::LowerBoundPolicy, ratio::Float64) where {A}
 	max_value = typemin(Float64)
-	for (a, v) in node._Q_action
-		value = node._Heuristic_Q_action[a]
+	for (a, value) in node._Q_action
+		value = 0.0
+		if haskey(Heuristic_Q_actions, a)
+            value = Heuristic_Q_actions[a]
+        end
 
+        node._Heuristic_Q_action[a] = value
+        # node._Q_action[a] = ratio*value
         node._Q_action[a] = value
 
 		if value > max_value
@@ -522,20 +519,12 @@ function LeafRollout(node::FscNode, ratio::Float64) where {A}
 		end
 	end
 
+    blind_policy_action = GetAction(lower_bound_policy, node._dict_weighted_samples)
+
+    node._blind_policy_action = blind_policy_action
+
 	return ratio*max_value
 end
-
-
-function HeuristicNodeQ(node::FscNode, Heuristic_Q_actions::Dict{A, Float64}) where {A}
-	for (a, value) in Heuristic_Q_actions
-        node._Heuristic_Q_action[a] = value
-	end
-end
-
-
-
-
-# function GetLowerEstimationQMDP()
 
 
 function GetValueQMDP(
@@ -603,7 +592,8 @@ function transition(fsc::FSC, nI::Int, a::A, o::O) where {A, O}
 
         if isempty(candidates)
             # println("Warning: No transitions found for action $a from node $nI with observation $o.")
-            return 1  # No transition for this action, go to root node
+            # return 1  # No transition for this action, go to root node
+            return nI
         end
         throw(ArgumentError("Invalid transition with node $nI, action $a, and observation $o."))        
     end

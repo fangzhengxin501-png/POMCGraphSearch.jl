@@ -13,7 +13,7 @@ using StatsBase
 using POMDPTools: discounted_reward, eachstep, HistoryRecorder, SparseCat
 
 include("ModelWrapper.jl")
-include("Qlearning.jl")
+include("Heuristic.jl")
 include("Utils.jl")
 include("FSC.jl")
 include("Planner.jl")
@@ -191,6 +191,9 @@ mutable struct SolverPOMCGS{POMDP, ASpace, OSpace_discrete, S, A, O_discrete} <:
         # Log result
         log_result = LogResult(Int64[], Float64[], Float64[], Float64[], Float64[], Int64[], Float64[])
 
+        lower_bound_policy = LowerBoundPolicy(collect(keys(V_table)), action_space, model, nb_sim_VMDP, max_search_depth, VMDP_heuristic._R_min, discount(model))
+
+
 		b0_processed = OrderedDict{Int,Float64}()
 
         for s in b0_particles
@@ -226,6 +229,7 @@ mutable struct SolverPOMCGS{POMDP, ASpace, OSpace_discrete, S, A, O_discrete} <:
                             nb_sim_per_iter, 
                             nb_eval, 
                             VMDP_heuristic,
+                            lower_bound_policy,
                             log_result,
                             ratio_heuristic_Q,
                             k_a,
