@@ -49,8 +49,7 @@ end
 
 # Get action from FSC node
 function POMDPs.action(fsc::FSC, node_id::Int)
-    # return GetBestAction(fsc._nodes[node_id])
-    return fsc._nodes[node_id]._best_action
+    return GetBestAction(fsc._nodes[node_id])
 end
 
 # Get updater for this policy
@@ -60,11 +59,6 @@ end
 
 # Update belief (node) based on action and observation
 function POMDPs.update(updater::FSCBeliefUpdater, current_node::Int, a::A, observation::O) where {A, O}
-    # Warn if action is not the node's best action
-    # if action != updater.fsc._nodes[current_node]._best_action
-    #     @warn "Action $action is not the best action for node $current_node"
-    # end
-    
     # Handle different observation types
     if updater.fsc._obs_kmeans_centroids != zeros(Float64, 0, 0)
         # Continuous observation: convert to discrete using clustering
