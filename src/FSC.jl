@@ -193,9 +193,6 @@ end
 
 
 function GetBestAction(n::FscNode)
-    # _, a = findmax(n._visits_action)
-    # n._best_action = a
-
     _, a = findmax(n._Q_action)
     n._best_action = a
 
@@ -500,7 +497,11 @@ end
 
 
 function HeuristicNodeQ(node::FscNode, Heuristic_Q_actions::Dict{A, Float64}, lower_bound_policy::LowerBoundPolicy) where {A}
-	
+    # a belief node's true value Vb* must be V_blind <= Vb* <= V_upper
+    # just init node value with the mean of V_blind and V_upper
+    # one could also come up with other options
+    
+
     blind_policy_value, blind_policy_action, blind_q_actions = GetValue(lower_bound_policy, node._dict_weighted_samples)
     node._blind_policy_action = blind_policy_action
     
@@ -523,9 +524,7 @@ function HeuristicNodeQ(node::FscNode, Heuristic_Q_actions::Dict{A, Float64}, lo
 
 
 
-    # a belief node's true value Vb* must be V_blind <= Vb* <= V_upper
-    # just init node value with the mean of V_blind and V_upper
-    # one could also come up with other options
+
     node._V_node = (blind_policy_value + max_value)/2
 end
 
