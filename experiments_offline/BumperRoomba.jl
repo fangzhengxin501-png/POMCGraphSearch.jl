@@ -25,9 +25,11 @@ pomcgs = SolverPOMCGS(pomdp;
                 max_b_gap = 0.05,
                 bool_APW = false,
                 C_star = 1000,
-                num_sim_per_sa = 500,
+                num_sim_per_sa = 1000,
                 max_planning_secs = 20000.0
 )
 
 solve(pomcgs, pomdp)
 ExportLogData(pomcgs, "BumperRoomba_log.csv")
+SavePrunedPolicyJSON(pomcgs.fsc, outfile_name="BumperRoomba_policy")
+SavePrunedPolicyDOT(pomcgs.fsc, outfile_name="BumperRoomba_policy")

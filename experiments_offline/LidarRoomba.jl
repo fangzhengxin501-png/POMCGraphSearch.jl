@@ -29,4 +29,6 @@ pomcgs = SolverPOMCGS(pomdp;
 )
 
 solve(pomcgs, pomdp)
-ExportLogData(pomcgs, "LidarRoomba_log.csv")
+ExportLogData(pomcgs, "LidarRoomba_log")
+SavePrunedPolicyJSON(pomcgs.fsc, outfile_name="LidarRoomba_policy")
+SavePrunedPolicyDOT(pomcgs.fsc, outfile_name="LidarRoomba_policy")

@@ -11,10 +11,10 @@ pomdp = gen_lasertag(rng=rng, robot_position_known=false)
 
 
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap = 0.05,
+    max_b_gap = 0.1,
     max_search_depth = 50,
-    num_fixed_observations=8,
-    num_sim_per_sa = 1000
+    num_fixed_observations=20,
+    num_sim_per_sa = 1000,
 )
 
 planning_time = 3.0
