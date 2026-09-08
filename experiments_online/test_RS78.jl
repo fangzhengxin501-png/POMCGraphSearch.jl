@@ -3,6 +3,7 @@ using POMDPModels, POMDPTools, POMDPs, Distributions, StatsBase
 using RockSample
 using CSV, DataFrames
 using Random 
+using Dates
 
 Random.seed!(1)
 
@@ -17,7 +18,7 @@ pomcgs = SolverPOMCGS(pomdp;
 
 planning_time = 2.0
 max_depth = 100
-nb_runs = 100 
+nb_runs = 100
 
 results = Float64[]
 
@@ -30,7 +31,10 @@ end
 
 # Save results to CSV
 df = DataFrame(run_id = 1:nb_runs, return_value = results)
-CSV.write("pomcgs_results_RS78.csv", df)
+#CSV.write("pomcgs_results_RS78.csv", df)
+timestamp = Dates.format(now(), "yyyymmdd_HHMMSS")
+CSV.write("RS78_offset_$(timestamp).csv", df)
+
 
 println("\nTotal return: $(sum(results))")
 println("Average return: $(mean(results))")
