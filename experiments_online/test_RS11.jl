@@ -11,13 +11,13 @@ Random.seed!(1)
 pomdp = RockSamplePOMDP(11,11)
 
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap = 0.3, #given in table 2
+    max_b_gap = 0.3, #offset 0.2, 
     max_search_depth = 40,
     num_sim_per_sa = 20,
     nb_particles = 10000  #given in table 2
 )
 
-planning_time = 3.0
+planning_time = 3.0 #offset 2.0
 max_depth = 100
 nb_runs = 100 
 

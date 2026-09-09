@@ -11,7 +11,7 @@ Random.seed!(1)
 pomdp = RockSamplePOMDP(15,15)
 
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap = 0.3, #given in table 2
+    max_b_gap = 0.3, #given in table 2, offset 0.2,
     max_search_depth = 40,
     num_sim_per_sa = 20,
     max_planning_secs = 36000.0,
