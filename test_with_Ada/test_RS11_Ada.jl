@@ -8,7 +8,7 @@ using Dates
 
 Random.seed!(1)
 
-pomdp = RockSamplePOMDP(7, 8)
+pomdp = RockSamplePOMDP(11, 11)
 
 bounds = AdaOPS.IndependentBounds(
     FORollout(RSExitSolver()),
@@ -59,8 +59,8 @@ end
 # Save results to CSV
 df = DataFrame(run_id = 1:nb_runs, return_value = results)
 timestamp = Dates.format(now(), "yyyymmdd_HHMMSS")
-CSV.write("RS78_AdaOPS_$(mean(results))_$(timestamp).csv", df)
+CSV.write("RS11_AdaOPS_$(mean(results))_$(timestamp).csv", df)
 
 println("\nTotal return: $(sum(results))")
 println("Average return: $(mean(results))")
-println("Results saved to RS78_AdaOPS_$(timestamp).csv")
+println("Results saved to RS11_AdaOPS_$(timestamp).csv")

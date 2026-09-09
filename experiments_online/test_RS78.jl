@@ -11,12 +11,13 @@ Random.seed!(1)
 pomdp = RockSamplePOMDP(7,8)
 
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap = 0.2,
+    max_b_gap = 0.1, #given in paper
     max_search_depth = 30,
-    num_sim_per_sa = 20
+    num_sim_per_sa = 20,
+    nb_particles = 5000  #given in table 2
 )
 
-planning_time = 2.0
+planning_time = 3.0
 max_depth = 100
 nb_runs = 100
 
@@ -33,7 +34,7 @@ end
 df = DataFrame(run_id = 1:nb_runs, return_value = results)
 #CSV.write("pomcgs_results_RS78.csv", df)
 timestamp = Dates.format(now(), "yyyymmdd_HHMMSS")
-CSV.write("RS78_offset_$(timestamp).csv", df)
+CSV.write("RS78_table2_$(timestamp).csv", df)
 
 
 println("\nTotal return: $(sum(results))")

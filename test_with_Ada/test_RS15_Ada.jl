@@ -8,7 +8,7 @@ using Dates
 
 Random.seed!(1)
 
-pomdp = RockSamplePOMDP(7, 8)
+pomdp = RockSamplePOMDP(15, 15)
 
 bounds = AdaOPS.IndependentBounds(
     FORollout(RSExitSolver()),
@@ -39,7 +39,7 @@ adaops_solver = AdaOPSSolver(
 adaops = solve(adaops_solver, pomdp)
 
 nb_runs = 100
-n_particles = 10_000   # particle filter used to TRACK THE TRUE BELIEF during simulation
+n_particles = 10000   # particle filter used to TRACK THE TRUE BELIEF during simulation
                         # (separate from AdaOPS's internal search-tree particles above)
 
 results = Float64[]
@@ -59,8 +59,8 @@ end
 # Save results to CSV
 df = DataFrame(run_id = 1:nb_runs, return_value = results)
 timestamp = Dates.format(now(), "yyyymmdd_HHMMSS")
-CSV.write("RS78_AdaOPS_$(timestamp).csv", df)
+CSV.write("RS15_AdaOPS_$(mean(results))_$(timestamp).csv", df)
 
 println("\nTotal return: $(sum(results))")
 println("Average return: $(mean(results))")
-println("Results saved to RS78_AdaOPS_$(timestamp).csv")
+println("Results saved to RS15_AdaOPS_$(timestamp).csv")

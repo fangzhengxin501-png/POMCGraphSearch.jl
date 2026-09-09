@@ -9,11 +9,11 @@ Random.seed!(1)
 
 rng = MersenneTwister(7)
 pomdp = gen_lasertag(rng=rng, robot_position_known=false)
-p_1 = length(ARGS) >= 1 ? parse(Int, ARGS[1]) : 20 #offset: 20
+p_1 = 30 #offset: 20
 
 
 pomcgs = SolverPOMCGS(pomdp;
-    max_b_gap = 0.1, # 这个也调一下，主要范围[0.03, 0.3]之间
+    max_b_gap = 0.03, # 这个也调一下，主要范围[0.03, 0.3]之间
     max_search_depth = 50, # 这个最多可以调到100，但最好固定
     num_fixed_observations = p_1, # 主要调这个，比如试试[3,5,10,20,50,100]这种, this is setting of k-cluster
     num_sim_per_sa = 1000,
@@ -21,7 +21,7 @@ pomcgs = SolverPOMCGS(pomdp;
 
 # deal with different number of clulsters with offset settings first
  
-planning_time = 3.0 # 这个视情况可以稍微增大，但要保证每个实验用的时间一致
+planning_time = 10.0 # 这个视情况可以稍微增大，但要保证每个实验用的时间一致 in range [1,10]
 max_depth = 100
 nb_runs = 100
 
@@ -38,8 +38,7 @@ end
 df = DataFrame(run_id = 1:nb_runs, return_value = results)
 #CSV.write("pomcgs_results_LaserTag.csv", df)
 timestamp = Dates.format(now(), "yyyymmdd_HHMMSS")
-CSV.write("offset_nobs$(p_1)_$(timestamp).csv", df)
+CSV.write("0.03_10_nobs$(p_1)_$(timestamp).csv", df)
 println("\nTotal return: $(sum(results))")
 println("Average return: $(mean(results))")
-
 
